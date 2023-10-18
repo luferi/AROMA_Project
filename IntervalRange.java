@@ -4,7 +4,6 @@ public class IntervalRange implements Range {
 
     List<NumericRange> intervals;
 
-
     @Override
     public boolean isInRange(Object obj) {
         int value = Integer.parseInt(obj.toString());
@@ -13,5 +12,12 @@ public class IntervalRange implements Range {
                 return true;
         }
         return false;
+    }
+
+    @Override
+    public String toString() {
+        return "IntervalRange{" +
+                "intervals=" + intervals +
+                '}';
     }
 }

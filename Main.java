@@ -16,5 +16,6 @@ public class Main {
         ParseTreeWalker walker = new ParseTreeWalker();
         SymbolDefinitionPhase def = new SymbolDefinitionPhase();
         walker.walk(def, tree);
+
     }
 }

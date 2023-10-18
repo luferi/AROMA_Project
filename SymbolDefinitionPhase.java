@@ -7,40 +7,72 @@ import java.util.Stack;
 
 public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
 
-    Map<String, Symbol> symbols;
+    private Map<String, Symbol> symbols;
 
-    String descritption;
+    private String description;
 
-    HashMap<String, Ingredient> ingredients;
-    HashMap<String, Integer> ratio;
-    Ingredient currentIngredient;
-    Parameter currentParameter;
+    private HashMap<String, Ingredient> ingredients;
+    private HashMap<String, Integer> ratio;
+    private Ingredient currentIngredient;
+    private Parameter currentParameter;
 
-    String mixFunctionSignature;
-    String mixFunctionPackage;
+    private String mixFunctionSignature;
+    private String mixFunctionPackage;
 
-    HashMap<String, Resource> resources;
+    private HashMap<String, Resource> resources;
 
-    Resource currentResource;
+    private Resource currentResource;
 
-    IntervalRange currentIntervalRange;
+    private IntervalRange currentIntervalRange;
 
-    Stack<FlowDeclaration> flows;
+    private Stack<FlowDeclaration> flows;
 
+    public Map<String, Symbol> getSymbols() {
+        return symbols;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public HashMap<String, Ingredient> getIngredients() {
+        return ingredients;
+    }
+
+    public HashMap<String, Integer> getRatio() {
+        return ratio;
+    }
+
+    public String getMixFunctionSignature() {
+        return mixFunctionSignature;
+    }
+
+    public String getMixFunctionPackage() {
+        return mixFunctionPackage;
+    }
+
+    public HashMap<String, Resource> getResources() {
+        return resources;
+    }
+
+    public Stack<FlowDeclaration> getFlows() {
+        return flows;
+    }
 
     @Override
     public void exitRecipe(DynamicRecipeParser.RecipeContext ctx) {
-        System.out.println("Description " + descritption);
+        System.out.println("Description " + description);
         System.out.println("Ingredients " + ingredients);
         System.out.println("Ratio " + ratio);
         System.out.println("Mix function signature " + mixFunctionSignature);
         System.out.println("Mix function package " + mixFunctionPackage);
         System.out.println("Flows " + flows.size());
+        System.out.println("End");
     }
 
     @Override
     public void enterDescription(DynamicRecipeParser.DescriptionContext ctx) {
-        descritption = ctx.STRING_LITERAL().getText();
+        description = ctx.STRING_LITERAL().getText();
     }
 
     @Override
@@ -51,12 +83,12 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
     @Override
     public void enterIngredient(DynamicRecipeParser.IngredientContext ctx) {
         currentIngredient = new Ingredient();
-        currentIngredient.name = ctx.IDENTIFIER().getText();
+        currentIngredient.setName(ctx.IDENTIFIER().getText());
     }
 
     @Override
     public void exitIngredient(DynamicRecipeParser.IngredientContext ctx) {
-        ingredients.put(currentIngredient.name, currentIngredient);
+        ingredients.put(currentIngredient.getName(), currentIngredient);
         currentIngredient = null;
     }
 
@@ -64,7 +96,7 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
     public void enterNumeric_range(DynamicRecipeParser.Numeric_rangeContext ctx) {
         NumericRange range = new NumericRange(Integer.parseInt(ctx.NUMBER_LITERAL(0).getText()), Integer.parseInt(ctx.NUMBER_LITERAL(1).getText()));
         if (currentIngredient != null) {
-            currentIngredient.range = range;
+            currentIngredient.setRange(range);
         } else if (currentIntervalRange != null) {
             currentIntervalRange.intervals.add(range);
         } else if (currentParameter != null) {
@@ -75,11 +107,11 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
     @Override
     public void enterEnumerated_range(DynamicRecipeParser.Enumerated_rangeContext ctx) {
         EnumeratedRange enumeratedRange = new EnumeratedRange();
-        enumeratedRange.values = new ArrayList<>();
+        enumeratedRange.admissableValues = new ArrayList<>();
         for (TerminalNode t : ctx.STRING_LITERAL())
-            enumeratedRange.values.add(t.getText());
+            enumeratedRange.admissableValues.add(t.getText());
         if (currentIngredient != null) {
-            currentIngredient.range = enumeratedRange;
+            currentIngredient.setRange(enumeratedRange);
         } else if (currentParameter != null) {
             currentParameter.range = enumeratedRange;
         }
@@ -115,7 +147,7 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
 
     @Override
     public void enterResources(DynamicRecipeParser.ResourcesContext ctx) {
-        resources = new HashMap<String, Resource>();
+        resources = new HashMap<>();
     }
 
     @Override
@@ -224,8 +256,8 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
             flows = new Stack<>();
             flows.push(seq);
         } else {
-            FlowDeclaration lastflow = flows.peek();
-            lastflow.addFlow(seq);
+            FlowDeclaration lastFlow = flows.peek();
+            lastFlow.addFlow(seq);
             flows.push(seq);
         }
     }
@@ -251,8 +283,8 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
             flows = new Stack<>();
             flows.push(repetition);
         } else {
-            FlowDeclaration lastflow = flows.peek();
-            lastflow.addFlow(repetition);
+            FlowDeclaration lastFlow = flows.peek();
+            lastFlow.addFlow(repetition);
             flows.push(repetition);
         }
     }
@@ -270,8 +302,8 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
             flows = new Stack<>();
             flows.push(pll);
         } else {
-            FlowDeclaration lastflow = flows.peek();
-            lastflow.addFlow(pll);
+            FlowDeclaration lastFlow = flows.peek();
+            lastFlow.addFlow(pll);
             flows.push(pll);
         }
     }
@@ -297,8 +329,8 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
             flows = new Stack<>();
             flows.push(decision);
         } else {
-            FlowDeclaration lastflow = flows.peek();
-            lastflow.addFlow(decision);
+            FlowDeclaration lastFlow = flows.peek();
+            lastFlow.addFlow(decision);
             flows.push(decision);
         }
     }

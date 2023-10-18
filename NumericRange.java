@@ -13,4 +13,12 @@ public class NumericRange implements Range{
         int value = Integer.parseInt(obj.toString());
         return min < value && value < max;
     }
+
+    @Override
+    public String toString() {
+        return "NumericRange{" +
+                "min=" + min +
+                ", max=" + max +
+                '}';
+    }
 }
