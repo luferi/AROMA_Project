@@ -15,6 +15,11 @@ public class IntervalRange implements Range {
     }
 
     @Override
+    public RangeType getType() {
+        return RangeType.NUMERIC_INTERVAL
+    }
+
+    @Override
     public String toString() {
         return "IntervalRange{" +
                 "intervals=" + intervals +

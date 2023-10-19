@@ -15,6 +15,11 @@ public class NumericRange implements Range{
     }
 
     @Override
+    public RangeType getType() {
+        return RangeType.NUMERIC;
+    }
+
+    @Override
     public String toString() {
         return "NumericRange{" +
                 "min=" + min +

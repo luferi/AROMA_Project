@@ -9,9 +9,16 @@ public class EnumeratedRange implements Range {
     }
 
     @Override
+    public RangeType getType() {
+        return RangeType.ENUMERATED;
+    }
+
+    @Override
     public String toString() {
         return "EnumeratedRange{" +
                 "admissableValues=" + admissableValues +
                 '}';
     }
+
+
 }

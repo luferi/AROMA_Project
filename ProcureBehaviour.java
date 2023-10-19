@@ -5,8 +5,12 @@ import jade.proto.ContractNetInitiator;
 import java.util.Vector;
 
 public class ProcureBehaviour extends ContractNetInitiator {
-    public ProcureBehaviour(Agent a, ACLMessage cfp) {
+
+    private String ingredientName;
+
+    public ProcureBehaviour(Agent a, ACLMessage cfp, String ingredientName) {
         super(a, cfp);
+        this.ingredientName = ingredientName;
     }
 
     @Override
@@ -14,22 +18,31 @@ public class ProcureBehaviour extends ContractNetInitiator {
         ACLMessage bestProposal = null;
         double bestPrice = 200000.0;
 
-        for(Object response : responses.stream().toList()){
-            if(((ACLMessage)response).getPerformative() == ACLMessage.PROPOSE){
-                double price = Double.parseDouble(((ACLMessage)response).getContent());
-                if (price < bestPrice){
-                    bestProposal = ((ACLMessage)response);
+        for (Object response : responses.stream().toList()) {
+            if (((ACLMessage) response).getPerformative() == ACLMessage.PROPOSE) {
+                double price = Double.parseDouble(((ACLMessage) response).getContent());
+                if (price < bestPrice) {
+                    bestProposal = ((ACLMessage) response);
                     bestPrice = price;
                 }
             }
         }
 
-        aqui testar se houve alguma oferta e aceitar ou errar em conformidade!
-                uma idea é se nao houve ofertas immediatamente recalcular os racios e fazer novo CFP
+        if (bestProposal != null) {
+            ACLMessage reply = bestProposal.createReply();
+            reply.setPerformative(ACLMessage.ACCEPT_PROPOSAL);
+            reply.setContent("I accept your offer");
+            acceptances.add(reply);
+        } else {
+            ((DynamicRecipeAgent)myAgent).activeNegotiations.get(ingredientName).setResult(false);
+            ((DynamicRecipeAgent)myAgent).activeNegotiations.get(ingredientName).setCompleted(true);
+        }
+
     }
 
     @Override
-    protected void handleAllResultNotifications(Vector resultNotifications) {
-        super.handleAllResultNotifications(resultNotifications);
+    protected void handleInform(ACLMessage inform) {
+        ((DynamicRecipeAgent)myAgent).activeNegotiations.get(ingredientName).setResult(true);
+        ((DynamicRecipeAgent)myAgent).activeNegotiations.get(ingredientName).setCompleted(true);
     }
 }
