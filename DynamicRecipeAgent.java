@@ -1,9 +1,6 @@
 import jade.core.AID;
 import jade.core.Agent;
-import jade.core.behaviours.Behaviour;
-import jade.core.behaviours.ParallelBehaviour;
-import jade.core.behaviours.SequentialBehaviour;
-import jade.core.behaviours.SimpleBehaviour;
+import jade.core.behaviours.*;
 import jade.domain.DFService;
 import jade.domain.FIPAAgentManagement.DFAgentDescription;
 import jade.domain.FIPAAgentManagement.ServiceDescription;
@@ -27,6 +24,8 @@ public class DynamicRecipeAgent extends Agent {
     Map<String, NegotiationResult> activeNegotiations = new HashMap<>();
     private Stack<String> rawMaterialAvailable = new Stack<>();
 
+    private boolean executing = false;
+
     private Map<String, Symbol> symbolTable;
 
     private Map<String, Double> recalculateRatio(Map<String, Double> ratio, List<Ingredient> infringingIngredients) {
@@ -49,7 +48,7 @@ public class DynamicRecipeAgent extends Agent {
     }
 
     private Behaviour covertFlowsToBehaviours(FlowDeclaration flow) {
-        //TODO here we must handle the deviations when negotitation takes place
+        //TODO here we must handle the deviations when negotiation takes place
         switch (flow.getType()) {
             case ATOMIC:
                 String resourceName = ((Atomic) flow).resource;
@@ -90,28 +89,20 @@ public class DynamicRecipeAgent extends Agent {
                 for (FlowDeclaration subFlow : ((Repetition) flow).getSubFlows()) {
                     sb.addSubBehaviour(covertFlowsToBehaviours(subFlow));
                 }
+
                 String finalOperand = operand2;
                 String finalNumberLiteral = numberLiteral2;
-                sb.addSubBehaviour(new SimpleBehaviour(this) {
+                Behaviour terminatorBehaviour = new OneShotBehaviour(this) {
+
+                    private boolean result = false;
+
                     @Override
                     public void action() {
-                        //TODO nothing to do here at the moment
-                    }
-
-                    @Override
-                    public boolean done() {
                         //TODO at the moment only applies to numeric variables, needs to be extended to the other variable types
-
-
-                        //TODO code below is not going to work because if it is inside a sequence the behaviour terminates it actually must be the other way arounf that simple behaviour encloses
-                        //the sequential and check it somehow. The logic for parssing the condition is ok though
-                        boolean result = false;
                         int oper1 = Integer.parseInt(symbolTable.get(operand1).value);
                         int oper2;
-                        if(finalOperand != null)
-                            oper2 = Integer.parseInt(symbolTable.get(finalOperand).value);
-                        else
-                            oper2 = Integer.parseInt(finalNumberLiteral);
+                        if (finalOperand != null) oper2 = Integer.parseInt(symbolTable.get(finalOperand).value);
+                        else oper2 = Integer.parseInt(finalNumberLiteral);
                         switch (operator) {
                             case "<":
                                 result = oper1 < oper2;
@@ -131,23 +122,40 @@ public class DynamicRecipeAgent extends Agent {
                                 result = oper1 <= oper2;
                                 break;
                         }
-                        if(!result)
-                            myAgent.addBehaviour(sb);
-                        return !result;
                     }
-                });
 
-                return sb;
-            //TODO this is fucked up!
+                    @Override
+                    public int onEnd() {
+                        if (result) return 0;
+                        else return 1;
+                    }
+                };
+
+                FSMBehaviour repetitionBehaviour = new FSMBehaviour(this);
+                repetitionBehaviour.registerFirstState(sb, "Repetition");
+                repetitionBehaviour.registerState(terminatorBehaviour, "Termination");
+                repetitionBehaviour.registerLastState(new OneShotBehaviour() {
+                    @Override
+                    public void action() {
+                        //TODO nothing to do here!
+                    }
+
+                }, "EffectiveTermination");
+
+                repetitionBehaviour.registerDefaultTransition("Repetition", "Termination", new String[]{"Repetition"});
+                repetitionBehaviour.registerTransition("Termination", "Repetition", 0, new String[]{"Termination"});
+                repetitionBehaviour.registerTransition("Termination", "EffectiveTermination", 1);
+
+                return repetitionBehaviour;
+
             case SEQUENCE:
                 SequentialBehaviour sbSeq = new SequentialBehaviour();
                 for (FlowDeclaration subFlow : ((Sequence) flow).getSubFlows()) {
                     sbSeq.addSubBehaviour(covertFlowsToBehaviours(subFlow));
                 }
-                return sb;
+                return sbSeq;
         }
-
-
+        return null;
     }
 
     @Override
@@ -322,7 +330,34 @@ public class DynamicRecipeAgent extends Agent {
         });
 
         FlowDeclaration flow = def.getFlows().pop();
-        Behaviour flows = covertFlowsToBehaviours(flow);
+        Behaviour jadeRecipe = covertFlowsToBehaviours(flow);
+        SequentialBehaviour sbMain = new SequentialBehaviour();
+        sbMain.addSubBehaviour(jadeRecipe);
+        sbMain.addSubBehaviour(new OneShotBehaviour() {
+            @Override
+            public void action() {
+                executing = false;
+            }
+        });
+
+        addBehaviour(new SimpleBehaviour() {
+            @Override
+            public void action() {
+                if (!executing) {
+                    if (!rawMaterialAvailable.isEmpty()) {
+                        rawMaterialAvailable.pop();
+                        myAgent.addBehaviour(jadeRecipe);
+                        executing = true;
+                    }
+                }
+
+            }
+
+            @Override
+            public boolean done() {
+                return rawMaterialAvailable.isEmpty();
+            }
+        });
 
 
     }
