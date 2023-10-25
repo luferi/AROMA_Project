@@ -20,4 +20,7 @@ public class Parallel implements FlowDeclaration {
         subFlows.add(flow);
     }
 
+    public List<FlowDeclaration> getSubFlows() {
+        return subFlows;
+    }
 }

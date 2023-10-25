@@ -1,6 +1,6 @@
 public class NegotiationResult {
 
-    private Ingredient ingredient;
+    private String ingredientName;
     private boolean result;
     private double quantity;
     private boolean deviatesFromIdeal;
@@ -8,8 +8,8 @@ public class NegotiationResult {
 
     private boolean completed;
 
-    public NegotiationResult(Ingredient ingredient, double quantity) {
-        this.ingredient = ingredient;
+    public NegotiationResult(String ingredientName, double quantity) {
+        this.ingredientName = ingredientName;
         this.result = false;
         this.quantity = quantity;
         this.deviatesFromIdeal = false;
@@ -17,12 +17,13 @@ public class NegotiationResult {
         this.completed = false;
     }
 
-    public Ingredient getIngredient() {
-        return ingredient;
+
+    public String getIngredientName() {
+        return ingredientName;
     }
 
-    public void setIngredient(Ingredient ingredient) {
-        this.ingredient = ingredient;
+    public void setIngredientName(String ingredientName) {
+        this.ingredientName = ingredientName;
     }
 
     public boolean isResult() {

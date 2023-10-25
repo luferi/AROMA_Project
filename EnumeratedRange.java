@@ -14,6 +14,11 @@ public class EnumeratedRange implements Range {
     }
 
     @Override
+    public String getUnit() {
+        return "tempEnumeratedUnit";
+    }
+
+    @Override
     public String toString() {
         return "EnumeratedRange{" +
                 "admissableValues=" + admissableValues +

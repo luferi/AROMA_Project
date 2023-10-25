@@ -1,7 +1,15 @@
+import jade.core.AID;
 import jade.core.Agent;
+import jade.core.behaviours.Behaviour;
+import jade.core.behaviours.ParallelBehaviour;
+import jade.core.behaviours.SequentialBehaviour;
 import jade.core.behaviours.SimpleBehaviour;
-import jade.core.behaviours.TickerBehaviour;
+import jade.domain.DFService;
+import jade.domain.FIPAAgentManagement.DFAgentDescription;
+import jade.domain.FIPAAgentManagement.ServiceDescription;
+import jade.domain.FIPAException;
 import jade.lang.acl.ACLMessage;
+import jade.proto.AchieveREInitiator;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
@@ -12,27 +20,133 @@ import java.util.*;
 
 public class DynamicRecipeAgent extends Agent {
 
-    private boolean ongoingNegotiation = false;
+    private enum ProcurementStatus {
+        IDLE, START_NEGOTIATION, WAIT_FOR_RESULTS, EVAL_RESULTS, PROCESS_SUCCESSFUL_NEG, PROCESS_FAILED_NEG, IMPOSSIBLE_NEG
+    }
 
     Map<String, NegotiationResult> activeNegotiations = new HashMap<>();
     private Stack<String> rawMaterialAvailable = new Stack<>();
 
-    private Map<String, Double> recalculateRatio(Map<String, Double> ratio, List<Ingredient> infringingIngredients){
+    private Map<String, Symbol> symbolTable;
+
+    private Map<String, Double> recalculateRatio(Map<String, Double> ratio, List<Ingredient> infringingIngredients) {
         Map<String, Double> newRatio = new HashMap<>();
-        for(Ingredient ingredient : infringingIngredients){
+        for (Ingredient ingredient : infringingIngredients) {
             Range range = ingredient.getRange();
-            switch (range.getType()){
+            switch (range.getType()) {
                 case NUMERIC:
                     double currentValue = ratio.get(ingredient.getName());
-                    if (currentValue - 10 > ((NumericRange)range).min && currentValue - 10 > 0){
+                    if (currentValue - 10 > ((NumericRange) range).min && currentValue - 10 > 0) {
                         newRatio.put(ingredient.getName(), currentValue - 10);
-                    }else{
-                        this is clearly a failed process and the agent must stop
+                    } else {
+                        return null;
                     }
-
                     break;
+                //TODO the other ranges are odd to compute here for future versions see if they make any sense
             }
         }
+        return newRatio;
+    }
+
+    private Behaviour covertFlowsToBehaviours(FlowDeclaration flow) {
+        //TODO here we must handle the deviations when negotitation takes place
+        switch (flow.getType()) {
+            case ATOMIC:
+                String resourceName = ((Atomic) flow).resource;
+                ACLMessage msg = new ACLMessage(ACLMessage.REQUEST);
+                msg.setContent(((Atomic) flow).function + " " + ((Atomic) flow).params.toString());
+                msg.addReceiver(new AID(resourceName));
+                msg.setOntology("Execution");
+                Behaviour b = new AchieveREInitiator(this, msg) {
+
+                    @Override
+                    protected void handleInform(ACLMessage inform) {
+                        System.out.println("Operation " + msg.getContent() + " executed with value " + inform.getContent());
+                    }
+                };
+                return b;
+            case DECISION:
+                //TODO not implemented just yet!
+                return null;
+            case PARALLEL:
+                ParallelBehaviour pb = new ParallelBehaviour();
+                for (FlowDeclaration subFlow : ((Parallel) flow).getSubFlows()) {
+                    pb.addSubBehaviour(covertFlowsToBehaviours(subFlow));
+                }
+                return pb;
+            case REPETITION:
+                String operator = ((Repetition) flow).operator;
+                String operand1 = ((Repetition) flow).operand1;
+                String operand2 = null;
+                if (((Repetition) flow).operand2 != null) {
+                    operand2 = ((Repetition) flow).operand2;
+                }
+                String numberLiteral2 = null;
+                if (((Repetition) flow).numberLiteral2 != null) {
+                    numberLiteral2 = ((Repetition) flow).numberLiteral2;
+                }
+
+                SequentialBehaviour sb = new SequentialBehaviour();
+                for (FlowDeclaration subFlow : ((Repetition) flow).getSubFlows()) {
+                    sb.addSubBehaviour(covertFlowsToBehaviours(subFlow));
+                }
+                String finalOperand = operand2;
+                String finalNumberLiteral = numberLiteral2;
+                sb.addSubBehaviour(new SimpleBehaviour(this) {
+                    @Override
+                    public void action() {
+                        //TODO nothing to do here at the moment
+                    }
+
+                    @Override
+                    public boolean done() {
+                        //TODO at the moment only applies to numeric variables, needs to be extended to the other variable types
+
+
+                        //TODO code below is not going to work because if it is inside a sequence the behaviour terminates it actually must be the other way arounf that simple behaviour encloses
+                        //the sequential and check it somehow. The logic for parssing the condition is ok though
+                        boolean result = false;
+                        int oper1 = Integer.parseInt(symbolTable.get(operand1).value);
+                        int oper2;
+                        if(finalOperand != null)
+                            oper2 = Integer.parseInt(symbolTable.get(finalOperand).value);
+                        else
+                            oper2 = Integer.parseInt(finalNumberLiteral);
+                        switch (operator) {
+                            case "<":
+                                result = oper1 < oper2;
+                            case ">":
+                                result = oper1 > oper2;
+                                break;
+                            case "==":
+                                result = oper1 == oper2;
+                                break;
+                            case "!=":
+                                result = oper1 != oper2;
+                                break;
+                            case ">=":
+                                result = oper1 >= oper2;
+                                break;
+                            case "<=":
+                                result = oper1 <= oper2;
+                                break;
+                        }
+                        if(!result)
+                            myAgent.addBehaviour(sb);
+                        return !result;
+                    }
+                });
+
+                return sb;
+            //TODO this is fucked up!
+            case SEQUENCE:
+                SequentialBehaviour sbSeq = new SequentialBehaviour();
+                for (FlowDeclaration subFlow : ((Sequence) flow).getSubFlows()) {
+                    sbSeq.addSubBehaviour(covertFlowsToBehaviours(subFlow));
+                }
+                return sb;
+        }
+
 
     }
 
@@ -57,103 +171,159 @@ public class DynamicRecipeAgent extends Agent {
         System.out.println(def.getDescription());
         System.out.println("#########################");
         System.out.println("List of Ingredients for the recipe:");
-        for(Ingredient ingredient : def.getIngredients().values()){
+        for (Ingredient ingredient : def.getIngredients().values()) {
             System.out.println(ingredient.toString());
         }
         System.out.println("#########################");
         System.out.println("Preferred Ingredient ratio:");
-        for(Map.Entry e : def.getRatio().entrySet()){
+        for (Map.Entry e : def.getRatio().entrySet()) {
             System.out.println(e.getKey() + " " + e.getValue());
         }
         System.out.println("#########################");
         System.out.println("List of Resources for the recipe");
-        for(Resource resource : def.getResources().values()){
+        for (Resource resource : def.getResources().values()) {
             System.out.println(resource.toString());
         }
         System.out.println("#########################");
 
+        symbolTable = def.getSymbols();
+
+        try {//TODO the sleep is just to allow the other agents to settle into the system not needed in normal operation
+            Thread.sleep(5000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        System.out.println("Starting Dynamic Procurement");
+
         addBehaviour(new SimpleBehaviour() {
+
+            private ProcurementStatus status = ProcurementStatus.IDLE;
+            private Map<String, Double> defaultRatio = def.getRatio();
+
             @Override
             public void action() {
-                if(!ongoingNegotiation){
-                    for(Map.Entry e : def.getRatio().entrySet()){
-                        System.out.println(e.getKey() + " " + e.getValue());
-                        String ingredientName = (String) e.getKey();
-                        double quantity = (double) e.getValue();
-                        ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
-                        cfp.setContent(ingredientName + ";" + quantity);
-                        addBehaviour(new ProcureBehaviour(myAgent, cfp, ingredientName));
-                        ongoingNegotiation = true;
-                    }
-                }else{
-                    boolean procurementComplete = true;
-                    for(NegotiationResult neg : activeNegotiations.values()){
-                        if (!neg.isCompleted()) {
-                            procurementComplete = false;
-                            break;
+                switch (status) {
+                    case IDLE:
+                        //TODO nothing to do here at the moment
+                        System.out.println("Procurement IDLE");
+                        status = ProcurementStatus.START_NEGOTIATION;
+                        break;
+                    case START_NEGOTIATION:
+                        System.out.println("Negotiation Started for ingredients:");
+                        for (Map.Entry e : defaultRatio.entrySet()) {
+                            System.out.println(e.getKey() + " " + e.getValue());
+                            String ingredientName = (String) e.getKey();
+                            double quantity = (double) e.getValue();
+                            System.out.println(ingredientName + " with quantity " + quantity);
+                            ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
+                            cfp.setContent(ingredientName + ";" + quantity + ";" + def.getIngredients().get(ingredientName).getRange().getUnit());
+                            cfp.setOntology("Negotiation");
+
+                            DFAgentDescription dfAgentDescription = new DFAgentDescription();
+                            ServiceDescription serviceDescription = new ServiceDescription();
+                            serviceDescription.setType("provider");
+                            serviceDescription.setName(ingredientName);
+                            dfAgentDescription.addServices(serviceDescription);
+                            try {
+                                DFAgentDescription[] suppliers = DFService.search(myAgent, dfAgentDescription);
+                                //TODO react to the case where there may not be suppliers
+                                for (DFAgentDescription supplier : suppliers) {
+                                    cfp.addReceiver(supplier.getName());
+                                }
+                            } catch (FIPAException ex) {
+                                throw new RuntimeException(ex);
+                            }
+                            activeNegotiations.put(ingredientName, new NegotiationResult(ingredientName, quantity));
+                            status = ProcurementStatus.WAIT_FOR_RESULTS;
+                            addBehaviour(new ProcureBehaviour(myAgent, cfp, ingredientName));
+
                         }
-
-                    }
-
-
-                    if (procurementComplete){
+                        break;
+                    case WAIT_FOR_RESULTS:
+                        System.out.println("Waiting for procurement results");
+                        if (!activeNegotiations.isEmpty()) {
+                            boolean procurementComplete = true;
+                            for (NegotiationResult neg : activeNegotiations.values()) {
+                                if (!neg.isCompleted()) {
+                                    procurementComplete = false;
+                                    break;
+                                }
+                            }
+                            if (procurementComplete) {
+                                System.out.println("Procurement complete");
+                                status = ProcurementStatus.EVAL_RESULTS;
+                            }
+                        }
+                        break;
+                    case EVAL_RESULTS:
+                        System.out.println("Evaluation procurement results");
                         boolean succeeded = true;
-                        for(NegotiationResult neg : activeNegotiations.values()){
+                        for (NegotiationResult neg : activeNegotiations.values()) {
                             if (!neg.isResult()) {
                                 succeeded = false;
                                 break;
                             }
                         }
-
-                        if(succeeded){
-                            String ingredients = "";
-                            boolean first = true;
-                            for(NegotiationResult neg : activeNegotiations.values()){
-                                if(!first){
-                                    ingredients += ";";
-                                }else{
-                                    first = false;
-                                }
-                                ingredients += neg.getIngredient().getName() + ";" +  neg.getQuantity();
+                        if (succeeded) {
+                            status = ProcurementStatus.PROCESS_SUCCESSFUL_NEG;
+                        } else {
+                            status = ProcurementStatus.PROCESS_FAILED_NEG;
+                        }
+                        break;
+                    case PROCESS_SUCCESSFUL_NEG:
+                        System.out.println("Procurement successful");
+                        String ingredients = "";
+                        boolean first = true;
+                        for (NegotiationResult neg : activeNegotiations.values()) {
+                            if (!first) {
+                                ingredients += "*";
+                            } else {
+                                first = false;
                             }
-                            rawMaterialAvailable.push(ingredients);
-                            ongoingNegotiation = false;
-
-                        }else{ //not succeeded this is the case for renegotiation
-
-                            List<Ingredient> infringingIngredients = new ArrayList<>();
-                            for(NegotiationResult neg : activeNegotiations.values()){
-                                if (!neg.isResult()) {
-                                    infringingIngredients.add(neg.getIngredient());
-                                }
-                            }
-
-                            for(Map.Entry e : def.getRatio().entrySet()){
-                                System.out.println(e.getKey() + " " + e.getValue());
-                                String ingredientName = (String) e.getKey();
-                                double quantity = (double) e.getValue();
-                                ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
-                                cfp.setContent(ingredientName + ";" + quantity);
-                                addBehaviour(new ProcureBehaviour(myAgent, cfp, ingredientName));
-                                ongoingNegotiation = true;
+                            ingredients += neg.getIngredientName() + ";" + neg.getQuantity();
+                        }
+                        System.out.println("Adding the following to the execution stack: " + ingredients);
+                        rawMaterialAvailable.push(ingredients);
+                        block(2000);
+                        status = ProcurementStatus.IDLE;
+                        break;
+                    case PROCESS_FAILED_NEG:
+                        System.out.println("Procurement failed due to the following infringing quantities");
+                        List<Ingredient> infringingIngredients = new ArrayList<>();
+                        for (NegotiationResult neg : activeNegotiations.values()) {
+                            if (!neg.isResult()) {
+                                System.out.println(neg.getIngredientName() + " with quantity " + defaultRatio.get(neg.getIngredientName()));
+                                infringingIngredients.add(def.getIngredients().get(neg.getIngredientName()));
                             }
                         }
-
-                    }
-
-
-
-
-
+                        System.out.println("Recalculating ratios");
+                        defaultRatio = recalculateRatio(defaultRatio, infringingIngredients);
+                        if (defaultRatio == null) {
+                            status = ProcurementStatus.IMPOSSIBLE_NEG;
+                        } else {
+                            status = ProcurementStatus.START_NEGOTIATION;
+                        }
+                        break;
                 }
 
             }
 
             @Override
             public boolean done() {
-                return false;
+                if (status == ProcurementStatus.IMPOSSIBLE_NEG) {
+                    System.out.println("Procurement is impossible due to insufficient offer, shutting down");
+                    return true;
+                } else {
+                    block(1000);
+                    return false;
+                }
             }
         });
+
+        FlowDeclaration flow = def.getFlows().pop();
+        Behaviour flows = covertFlowsToBehaviours(flow);
+
 
     }
 }

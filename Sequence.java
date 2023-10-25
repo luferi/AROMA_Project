@@ -19,4 +19,8 @@ public class Sequence implements FlowDeclaration {
     public void addFlow(FlowDeclaration flow) {
         subFlows.add(flow);
     }
+
+    public List<FlowDeclaration> getSubFlows() {
+        return subFlows;
+    }
 }

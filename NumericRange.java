@@ -3,9 +3,13 @@ public class NumericRange implements Range{
     int min;
     int max;
 
-    public NumericRange(int min, int max) {
+    String unit;
+
+    public NumericRange(int min, int max, String unit) {
         this.min = min;
         this.max = max;
+        String result = unit.substring(1, unit.length() - 1);
+        this.unit = result;
     }
 
     @Override
@@ -17,6 +21,11 @@ public class NumericRange implements Range{
     @Override
     public RangeType getType() {
         return RangeType.NUMERIC;
+    }
+
+    @Override
+    public String getUnit() {
+        return unit;
     }
 
     @Override

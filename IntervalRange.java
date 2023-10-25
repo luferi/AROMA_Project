@@ -16,7 +16,12 @@ public class IntervalRange implements Range {
 
     @Override
     public RangeType getType() {
-        return RangeType.NUMERIC_INTERVAL
+        return RangeType.NUMERIC_INTERVAL;
+    }
+
+    @Override
+    public String getUnit() {
+        return "tempNumericIntervalsUnit";
     }
 
     @Override

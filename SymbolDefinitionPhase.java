@@ -12,7 +12,7 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
     private String description;
 
     private HashMap<String, Ingredient> ingredients;
-    private HashMap<String, Integer> ratio;
+    private HashMap<String, Double> ratio;
     private Ingredient currentIngredient;
     private Parameter currentParameter;
 
@@ -39,7 +39,7 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
         return ingredients;
     }
 
-    public HashMap<String, Integer> getRatio() {
+    public HashMap<String, Double> getRatio() {
         return ratio;
     }
 
@@ -94,7 +94,7 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
 
     @Override
     public void enterNumeric_range(DynamicRecipeParser.Numeric_rangeContext ctx) {
-        NumericRange range = new NumericRange(Integer.parseInt(ctx.NUMBER_LITERAL(0).getText()), Integer.parseInt(ctx.NUMBER_LITERAL(1).getText()));
+        NumericRange range = new NumericRange(Integer.parseInt(ctx.NUMBER_LITERAL(0).getText()), Integer.parseInt(ctx.NUMBER_LITERAL(1).getText()), ctx.STRING_LITERAL().getText());
         if (currentIngredient != null) {
             currentIngredient.setRange(range);
         } else if (currentIntervalRange != null) {
@@ -133,7 +133,7 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
     public void enterIngredient_ratio(DynamicRecipeParser.Ingredient_ratioContext ctx) {
         ratio = new HashMap<>();
         for (int i = 0; i < ctx.IDENTIFIER().size(); i++) {
-            ratio.put(ctx.IDENTIFIER().get(i).getText(), Integer.parseInt(ctx.NUMBER_LITERAL().get(i).getText()));
+            ratio.put(ctx.IDENTIFIER().get(i).getText(), Double.parseDouble(ctx.NUMBER_LITERAL().get(i).getText()));
         }
     }
 

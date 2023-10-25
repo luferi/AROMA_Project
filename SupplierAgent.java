@@ -16,7 +16,7 @@ public class SupplierAgent extends Agent {
 
     @Override
     protected void setup() {
-        Ingredient water = new Ingredient("water", 10000.0, "ml", 1);
+        Ingredient water = new Ingredient("water", 500.0, "ml", 1);
         Ingredient sweetener = new Ingredient("sweetener", 10000.0, "g", 2);
         Ingredient sugar = new Ingredient("sugar", 10000.0, "g", 2);
 
