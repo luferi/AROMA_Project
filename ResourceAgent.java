@@ -44,6 +44,7 @@ public class ResourceAgent extends Agent {
                 ACLMessage reply = request.createReply();
                 System.out.println("Executing the following request " + request.getContent());
                 reply.setPerformative(ACLMessage.INFORM);
+                reply.setContent("60;t");
                 return reply;
             }
         });

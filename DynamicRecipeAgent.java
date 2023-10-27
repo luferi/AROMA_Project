@@ -21,10 +21,12 @@ public class DynamicRecipeAgent extends Agent {
         IDLE, START_NEGOTIATION, WAIT_FOR_RESULTS, EVAL_RESULTS, PROCESS_SUCCESSFUL_NEG, PROCESS_FAILED_NEG, IMPOSSIBLE_NEG
     }
 
+    private enum ExecutionStatus {
+        IDLE, START_EXECUTION, WAIT_FOR_EXECUTION
+    }
+
     Map<String, NegotiationResult> activeNegotiations = new HashMap<>();
     private Stack<String> rawMaterialAvailable = new Stack<>();
-
-    private boolean executing = false;
 
     private Map<String, Symbol> symbolTable;
 
@@ -53,14 +55,22 @@ public class DynamicRecipeAgent extends Agent {
             case ATOMIC:
                 String resourceName = ((Atomic) flow).resource;
                 ACLMessage msg = new ACLMessage(ACLMessage.REQUEST);
+                System.out.println(resourceName + "----------------------------------------------------------> " + ((Atomic) flow).function + " " + ((Atomic) flow).params.toString());
                 msg.setContent(((Atomic) flow).function + " " + ((Atomic) flow).params.toString());
-                msg.addReceiver(new AID(resourceName));
+                msg.addReceiver(new AID(resourceName, false));
                 msg.setOntology("Execution");
-                Behaviour b = new AchieveREInitiator(this, msg) {
+                AchieveREInitiator b = new AchieveREInitiator(this, msg) {
 
                     @Override
                     protected void handleInform(ACLMessage inform) {
+                        //TODO error found, must update the symbol table on the reply
                         System.out.println("Operation " + msg.getContent() + " executed with value " + inform.getContent());
+                        StringTokenizer st = new StringTokenizer(inform.getContent(), ";");
+                        String value = st.nextToken();
+                        String variable = st.nextToken();
+                        Symbol symbol = new Symbol(variable, AromaType.NUMBER);
+                        symbol.value = value;
+                        symbolTable.put(variable, symbol);
                     }
                 };
                 return b;
@@ -106,6 +116,7 @@ public class DynamicRecipeAgent extends Agent {
                         switch (operator) {
                             case "<":
                                 result = oper1 < oper2;
+                                break;
                             case ">":
                                 result = oper1 > oper2;
                                 break;
@@ -137,7 +148,7 @@ public class DynamicRecipeAgent extends Agent {
                 repetitionBehaviour.registerLastState(new OneShotBehaviour() {
                     @Override
                     public void action() {
-                        //TODO nothing to do here!
+                        System.out.println("Terminating FSM");
                     }
 
                 }, "EffectiveTermination");
@@ -329,36 +340,39 @@ public class DynamicRecipeAgent extends Agent {
             }
         });
 
-        FlowDeclaration flow = def.getFlows().pop();
-        Behaviour jadeRecipe = covertFlowsToBehaviours(flow);
-        SequentialBehaviour sbMain = new SequentialBehaviour();
-        sbMain.addSubBehaviour(jadeRecipe);
-        sbMain.addSubBehaviour(new OneShotBehaviour() {
-            @Override
-            public void action() {
-                executing = false;
-            }
-        });
 
-        addBehaviour(new SimpleBehaviour() {
+        addBehaviour(new CyclicBehaviour() {
+
+            private ExecutionStatus status = ExecutionStatus.IDLE;
+            private Behaviour jadeRecipe;
+
             @Override
             public void action() {
-                if (!executing) {
-                    if (!rawMaterialAvailable.isEmpty()) {
-                        rawMaterialAvailable.pop();
+                switch (status) {
+                    case IDLE:
+                        block(1000);
+                        if (!rawMaterialAvailable.isEmpty()) {
+                            status = ExecutionStatus.START_EXECUTION;
+                            rawMaterialAvailable.pop();
+                        }
+                        break;
+                    case START_EXECUTION:
+                        System.out.println("STARTING EXECUTION!<-------------------------------------------");
+                        FlowDeclaration flow = def.getFlows().peek();
+                        jadeRecipe = covertFlowsToBehaviours(flow);
                         myAgent.addBehaviour(jadeRecipe);
-                        executing = true;
-                    }
+                        status = ExecutionStatus.WAIT_FOR_EXECUTION;
+                        break;
+                    case WAIT_FOR_EXECUTION:
+                        if (jadeRecipe.done()) {
+                            status = ExecutionStatus.IDLE;
+                            System.out.println("RECIPE is done!<------------------------------------------");
+                        }
+                        break;
                 }
-
             }
 
-            @Override
-            public boolean done() {
-                return rawMaterialAvailable.isEmpty();
-            }
         });
-
 
     }
 }

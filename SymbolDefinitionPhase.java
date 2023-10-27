@@ -187,8 +187,7 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
             } else if (ctx.ENUMERATION() != null) {
                 parameter.type = AromaType.ENUMERATION;
             }
-            if (fun.inputParameters == null)
-                fun.inputParameters = new ArrayList<>();
+            if (fun.inputParameters == null) fun.inputParameters = new ArrayList<>();
             fun.inputParameters.add(parameter);
         } else if (ctx.OUTPUT_PARAMETER() != null) {
             parameter.name = ctx.IDENTIFIER().getText();
@@ -201,8 +200,7 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
             } else if (ctx.ENUMERATION() != null) {
                 parameter.type = AromaType.ENUMERATION;
             }
-            if (fun.outputParameters == null)
-                fun.outputParameters = new ArrayList<>();
+            if (fun.outputParameters == null) fun.outputParameters = new ArrayList<>();
             fun.outputParameters.add(parameter);
         }
         currentParameter = parameter;
@@ -215,7 +213,7 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
 
     @Override
     public void enterVariableDeclaration(DynamicRecipeParser.VariableDeclarationContext ctx) {
-        symbols = new HashMap<>();
+        if (symbols == null) symbols = new HashMap<>();
     }
 
 
@@ -264,17 +262,16 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
 
     @Override
     public void exitSequence(DynamicRecipeParser.SequenceContext ctx) {
-        if (flows.size() > 1)
-            flows.pop();
+        if (flows.size() > 1) flows.pop();
     }
 
     @Override
     public void enterRepetition(DynamicRecipeParser.RepetitionContext ctx) {
         Repetition repetition = new Repetition();
         repetition.operand1 = ctx.IDENTIFIER(0).getText();
-        if(ctx.IDENTIFIER(1) != null){
+        if (ctx.IDENTIFIER(1) != null) {
             repetition.operand2 = ctx.IDENTIFIER(1).getText();
-        }else{
+        } else {
             repetition.numberLiteral2 = ctx.NUMBER_LITERAL().getText();
         }
         repetition.operator = ctx.relationalOperator().getText();
@@ -291,8 +288,7 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
 
     @Override
     public void exitRepetition(DynamicRecipeParser.RepetitionContext ctx) {
-        if (flows.size() > 1)
-            flows.pop();
+        if (flows.size() > 1) flows.pop();
     }
 
     @Override
@@ -310,17 +306,16 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
 
     @Override
     public void exitParallel(DynamicRecipeParser.ParallelContext ctx) {
-        if (flows.size() > 1)
-            flows.pop();
+        if (flows.size() > 1) flows.pop();
     }
 
     @Override
     public void enterDecision(DynamicRecipeParser.DecisionContext ctx) {
         Decision decision = new Decision();
         decision.operand1 = ctx.IDENTIFIER(0).getText();
-        if(ctx.IDENTIFIER(1) != null){
+        if (ctx.IDENTIFIER(1) != null) {
             decision.operand2 = ctx.IDENTIFIER(1).getText();
-        }else{
+        } else {
             decision.numberLiteral2 = ctx.NUMBER_LITERAL().getText();
         }
         decision.operator = ctx.relationalOperator().getText();
@@ -337,8 +332,7 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
 
     @Override
     public void exitDecision(DynamicRecipeParser.DecisionContext ctx) {
-        if (flows.size() > 1)
-            flows.pop();
+        if (flows.size() > 1) flows.pop();
     }
 
     @Override
@@ -347,7 +341,7 @@ public class SymbolDefinitionPhase extends DynamicRecipeBaseListener {
         atomic.params = new ArrayList<>();
         atomic.resource = ctx.IDENTIFIER(0).getText();
         atomic.function = ctx.IDENTIFIER(1).getText();
-        for (int i = 0; i < ctx.literal().size(); i++){
+        for (int i = 0; i < ctx.literal().size(); i++) {
             atomic.params.add(ctx.literal(i).getText());
         }
         flows.peek().addFlow(atomic);
